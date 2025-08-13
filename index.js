@@ -2,7 +2,12 @@ import express from "express";
 import { Logger } from "@mondaycom/apps-sdk";
 import { transformText } from "./src/transformation-service.js";
 import { authorizeRequest } from "./src/middleware.js";
-import { changeColumnValue, getColumnValue } from "./src/monday-api-service.js";
+import {
+  changeColumnValue,
+  createMondayItem,
+  getColumnValue,
+  getItemName,
+} from "./src/monday-api-service.js";
 import { getSecret, isDevelopmentEnv, getEnv } from "./src/helpers.js";
 import dotenv from "dotenv";
 import { readQueueMessage, produceMessage } from "./src/queue-service.js";
@@ -53,13 +58,15 @@ app.post("/monday/execute_action", authorizeRequest, async (req, res) => {
       transformationType,
     } = inputFields;
 
-    const text = await getColumnValue(shortLivedToken, itemId, sourceColumnId);
-    console.log("text", text);
-    if (!text) {
+    const value = await getColumnValue(shortLivedToken, itemId, sourceColumnId);
+    const name = await getItemName(shortLivedToken, itemId);
+    console.log("value", value);
+    console.log("name", name);
+    if (!value) {
       return res.status(200).send({});
     }
     const transformedText = transformText(
-      text,
+      value,
       transformationType ? transformationType.value : "TO_UPPER_CASE"
     );
 
@@ -94,6 +101,35 @@ app.post(
     }
   }
 );
+
+app.post("/create-loan", async (req, res) => {
+  try {
+    // Updated to accept 'groupId' from the request body
+    const { boardId, itemName, loanAmount, loanColumnId, groupId } = req.body;
+    console.log("req.body", req.body);
+    // Prepare the columnValues object from the received data
+    const columnValues = {};
+    if (loanAmount && loanColumnId) {
+      columnValues[loanColumnId] = loanAmount;
+    }
+
+    // Pass the new 'groupId' to the service function
+    const response = await createMondayItem(
+      boardId,
+      itemName,
+      columnValues,
+      groupId
+    );
+
+    // Respond with the monday.com API response
+    res.status(200).json(response);
+  } catch (err) {
+    console.error("Error creating monday item:", err.message);
+    res
+      .status(500)
+      .json({ error: "Failed to create monday item", details: err.message });
+  }
+});
 
 app.post("/produce", async (req, res) => {
   try {
