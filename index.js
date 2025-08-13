@@ -27,7 +27,7 @@ const app = express();
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.status(200).send({ message: "healthy" });
+  res.status(200).send({ message: "hello from backend" });
 });
 
 app.post("/monday/execute_action", authorizeRequest, async (req, res) => {
